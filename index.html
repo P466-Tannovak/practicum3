@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prime Number Checker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <section id="loginSection">
+        <h2>Login</h2>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button id="loginButton">Login</button>
+        <p id="loginResult" class="hidden"></p>
+    </section>
+
+    <section id="primeCheckerSection" class="hidden">
+        <h2>Prime Number Checker</h2>
+        <input type="number" id="numberInput" placeholder="Enter a number">
+        <button id="checkButton">Check</button>
+        <p id="primeResult" class="hidden"></p>
+        <button id="logoutButton">Logout</button>
+    </section>
+
+    <script>
+        // API base URL
+        const API_BASE_URL = 'http://localhost:4001';
+        
+        // Global variable to store the authentication token
+        let authToken = null;
+
+        // DOM Elements
+        const loginSection = document.getElementById('loginSection');
+        const primeCheckerSection = document.getElementById('primeCheckerSection');
+        const loginButton = document.getElementById('loginButton');
+        const logoutButton = document.getElementById('logoutButton');
+        const checkButton = document.getElementById('checkButton');
+        const loginResult = document.getElementById('loginResult');
+        const primeResult = document.getElementById('primeResult');
+
+        // Event Listeners
+        loginButton.addEventListener('click', handleLogin);
+        logoutButton.addEventListener('click', handleLogout);
+        checkButton.addEventListener('click', checkPrimeNumber);
+
+        // Login Function
+        async function handleLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showResult(loginResult, 'Please enter both username and password', 'error');
+                return;
+            }
+
+            try {
+                loginButton.disabled = true;
+                showResult(loginResult, 'Logging in...', 'info');
+                
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Login failed: ${response.status} ${response.statusText}`);
+                }
+
+                authToken = await response.text();
+
+                
+                // Show success message and switch to prime checker section
+                showResult(loginResult, 'Login successful!', 'success');
+                setTimeout(() => {
+                    loginSection.classList.add('hidden');
+                    primeCheckerSection.classList.remove('hidden');
+                }, 1000);
+            } catch (error) {
+                showResult(loginResult, error.message, 'error');
+                loginButton.disabled = false;
+            }
+        }
+
+        // Logout Function
+        function handleLogout() {
+            authToken = null;
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('numberInput').value = '';
+            
+            primeCheckerSection.classList.add('hidden');
+            loginSection.classList.remove('hidden');
+            loginResult.classList.add('hidden');
+            loginButton.disabled = false;
+        }
+
+        // Check Prime Function
+        async function checkPrimeNumber() {
+            const numberInput = document.getElementById('numberInput');
+            const number = numberInput.value;
+            
+            if (!number || number <= 0 || !Number.isInteger(parseFloat(number))) {
+                showResult(primeResult, 'Please enter a positive integer', 'error');
+                return;
+            }
+
+            if (!authToken) {
+                showResult(primeResult, 'Not authenticated. Please login again.', 'error');
+                handleLogout();
+                return;
+            }
+
+            try {
+                checkButton.disabled = true;
+                showResult(primeResult, 'Checking...', 'info');
+                
+                const response = await fetch(`${API_BASE_URL}/primes/${number}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.status === 401) {
+                    throw new Error('Authentication expired. Please login again.');
+                }
+
+                if (!response.ok) {
+                    throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const message = data.isPrime 
+                    ? `${number} is a prime number!` 
+                    : `${number} is not a prime number.`;
+                showResult(primeResult, message, 'success');
+            } catch (error) {
+                showResult(primeResult, error.message, 'error');
+                if (error.message.includes('Authentication expired')) {
+                    handleLogout();
+                }
+            } finally {
+                checkButton.disabled = false;
+            }
+        }
+
+        // Helper function to display results
+        function showResult(element, message, type) {
+            element.textContent = message;
+            element.className = 'result ' + type;
+            element.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
